@@ -1,0 +1,8 @@
+bin/
+obj/
+artifacts/
+Builds/**/*.exe
+Builds/**/*.zip
+.vs/
+*.user
+*.suo

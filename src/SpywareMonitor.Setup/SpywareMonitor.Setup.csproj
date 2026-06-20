@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>SpywareMonitor.Setup</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EmbedPayload)' == 'true'">
+    <EmbeddedResource Include="$(PayloadRoot)\app\SpywareMonitor.App.exe" LogicalName="Payload.SpywareMonitor.App.exe" />
+    <EmbeddedResource Include="$(PayloadRoot)\service\SpywareMonitor.Service.exe" LogicalName="Payload.SpywareMonitor.Service.exe" />
+  </ItemGroup>
+
+</Project>
