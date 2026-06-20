@@ -14,6 +14,7 @@ public sealed record MonitorSettings
     public bool CaptureCommandLines { get; init; } = true;
     public bool CaptureNetworkEndpoints { get; init; } = true;
     public bool PersistHistory { get; init; } = true;
+    public string LogDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SpywareMonitor", "Logs");
 }
 
 public sealed record NetworkEndpoint(
@@ -55,6 +56,7 @@ public sealed record MonitorAlert(
 public sealed record SystemSnapshot
 {
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.Now;
+    public string SnapshotTime => Timestamp.ToString("HH:mm:ss");
     public double CpuPercent { get; init; }
     public double MemoryPercent { get; init; }
     public long UsedMemoryBytes { get; init; }

@@ -1,46 +1,42 @@
 # PC Pressure Monitor
 
-Локальное Windows-приложение для поиска процессов, вызывающих постоянные микрофризы. Сборщик работает как автоматическая Windows-служба, а WPF-интерфейс запускается без прав администратора.
+A local Windows application for finding processes that cause persistent stutter and system pressure. Data collection runs as an automatic Windows service; the WPF interface runs without administrator privileges.
 
-## Что уже измеряется
+## What it monitors
 
-- CPU каждого процесса и общая загрузка;
-- working set/private memory, потоки и handles;
-- скорость чтения/записи процесса и суммарный I/O;
-- зависшие GUI-окна;
-- запуск и остановка процессов, родительский PID, путь и командная строка;
-- IPv4 TCP endpoint каждого процесса: локальный/удалённый адрес, порт и состояние;
-- рейтинг давления и предупреждения по настраиваемым порогам;
-- локальная JSONL-история с автоматическим сроком хранения (дисковый снимок раз в 10 секунд, быстрые снимки остаются в памяти).
+- per-process and system CPU usage;
+- working set, private memory, threads, and handles;
+- process read/write throughput and aggregate disk I/O;
+- unresponsive GUI windows;
+- process start/stop events, parent PID, executable path, and command line;
+- IPv4 TCP endpoints with local/remote address, port, and state;
+- pressure scoring and configurable alerts;
+- local JSONL history with configurable storage directory and retention.
 
-Приложение намеренно не читает нажатия клавиш, содержимое окон и пользовательские файлы и не отправляет телеметрию наружу.
+Every persisted snapshot contains an ISO timestamp and a dedicated `snapshotTime` field in `HH:mm:ss` format. The application does not capture keystrokes, window contents, or user file contents, and sends no telemetry.
 
-## Готовая установка
+## Install
 
-Скачайте и запустите `Builds\v1.0.0\PC-Pressure-Monitor-Setup-1.0.0-win-x64.exe`. Это автономный графический установщик: он запросит UAC, установит приложение и службу, включит автоматический запуск, создаст ярлык и добавит штатное удаление в Windows.
+Download `PC-Pressure-Monitor-Setup-1.0.0-win-x64.exe` from [GitHub Release v1.0.0](https://github.com/Solpadoin/SpywareMonitor-PC-Pressure-Monitor-/releases/tag/v1.0.0). The graphical setup requests UAC, installs the desktop application and service, enables automatic startup, creates a shortcut, and registers the uninstaller with Windows.
 
-Контрольные суммы и portable-архив находятся рядом в папке версии.
+Checksums and the portable package are published with the release and described under `Builds/v1.0.0`.
 
-## Сборка из исходников
+## Build from source
 
-Требуется Windows 10/11 и .NET SDK 7+ только для сборки. Готовая публикация self-contained.
+Windows 10/11 and .NET SDK 7+ are required for building. Published packages are self-contained.
 
 ```powershell
 .\build.ps1
 ```
 
-Результат появится одновременно во временном `artifacts` и в версионном каталоге `Builds\v1.0.0`.
+The script writes intermediate output under `artifacts` and creates the versioned release package under `Builds/v1.0.0`.
 
-После установки служба `SpywareMonitor` стартует автоматически (тип `Automatic`) и перезапускается при сбое. Ярлык интерфейса появляется на общем рабочем столе. История и настройки находятся в `C:\ProgramData\SpywareMonitor`.
+For development, run `dotnet run --project src/SpywareMonitor.Service`, then start the WPF project separately.
 
-Если используется portable ZIP, откройте «Настройки» и нажмите «Установить и запустить». Приложение запросит права администратора и самостоятельно зарегистрирует вложенную службу.
+## Performance safeguards
 
-Для разработки службу можно запустить из терминала обычным `dotnet run --project src/SpywareMonitor.Service`, затем отдельно запустить WPF-проект.
+The default sampling interval is one second and cannot be set below 500 ms. In-memory history and process counts are bounded. Command-line capture, TCP endpoint capture, and disk history can be disabled.
 
-## Управление нагрузкой монитора
+## Tracing scope
 
-По умолчанию снимок создаётся раз в секунду. Минимальный интервал ограничен 500 мс, число процессов и история в памяти ограничены. Командные строки, TCP endpoints и запись истории можно отключить в настройках.
-
-## Граница детализации
-
-Под «вызовами» текущая версия показывает жизненный цикл процессов и сетевые назначения. Полная трассировка каждого системного вызова или каждой файловой операции требует отдельного ETW-драйвера/сессии и создаёт большой поток данных; её нельзя держать постоянно включённой без риска самой вызвать лаги. Для такой диагностики следует добавлять ограниченный по времени режим записи ETW, а не включать его в постоянный фоновый сбор.
+The current release records process lifecycle and network destinations. Full system-call or per-file-operation tracing requires a bounded ETW capture session and produces substantial data, so it is intentionally not enabled as permanent background monitoring.

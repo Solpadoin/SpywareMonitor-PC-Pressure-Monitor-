@@ -113,10 +113,10 @@ public sealed class ProcessSampler
         var result = new List<MonitorAlert>();
         foreach (var p in items.Take(30))
         {
-            if (p.CpuPercent >= settings.CpuAlertPercent) result.Add(new(now, "warning", $"Высокая загрузка CPU: {p.Name}", $"{p.CpuPercent:F1}% CPU", p.ProcessId));
-            if (p.PrivateMemoryBytes >= settings.MemoryAlertBytes) result.Add(new(now, "warning", $"Много памяти: {p.Name}", $"{p.PrivateMemoryBytes / 1024d / 1024 / 1024:F2} ГБ private memory", p.ProcessId));
-            if (p.ReadBytesPerSecond + p.WriteBytesPerSecond >= settings.IoAlertBytesPerSecond) result.Add(new(now, "warning", $"Интенсивный диск: {p.Name}", $"{(p.ReadBytesPerSecond + p.WriteBytesPerSecond) / 1024d / 1024:F1} МБ/с", p.ProcessId));
-            if (p.Responding == false) result.Add(new(now, "critical", $"Окно не отвечает: {p.Name}", "Windows сообщает, что главное окно зависло", p.ProcessId));
+            if (p.CpuPercent >= settings.CpuAlertPercent) result.Add(new(now, "warning", $"High CPU usage: {p.Name}", $"{p.CpuPercent:F1}% CPU", p.ProcessId));
+            if (p.PrivateMemoryBytes >= settings.MemoryAlertBytes) result.Add(new(now, "warning", $"High memory usage: {p.Name}", $"{p.PrivateMemoryBytes / 1024d / 1024 / 1024:F2} GB private memory", p.ProcessId));
+            if (p.ReadBytesPerSecond + p.WriteBytesPerSecond >= settings.IoAlertBytesPerSecond) result.Add(new(now, "warning", $"Heavy disk activity: {p.Name}", $"{(p.ReadBytesPerSecond + p.WriteBytesPerSecond) / 1024d / 1024:F1} MB/s", p.ProcessId));
+            if (p.Responding == false) result.Add(new(now, "critical", $"Window not responding: {p.Name}", "Windows reports that the main window is unresponsive.", p.ProcessId));
         }
         return result;
     }

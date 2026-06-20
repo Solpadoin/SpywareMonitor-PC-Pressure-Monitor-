@@ -24,7 +24,8 @@ public sealed class HistoryStore
         if (!settings.PersistHistory || snapshot.Timestamp - _lastPersisted < TimeSpan.FromSeconds(10)) return;
         _lastPersisted = snapshot.Timestamp;
         var persisted = snapshot with { Processes = snapshot.Processes.Take(100).ToArray() };
-        var path = Path.Combine(_settings.DataDirectory, $"metrics-{snapshot.Timestamp:yyyy-MM-dd}.jsonl");
+        Directory.CreateDirectory(settings.LogDirectory);
+        var path = Path.Combine(settings.LogDirectory, $"metrics-{snapshot.Timestamp:yyyy-MM-dd}.jsonl");
         await File.AppendAllTextAsync(path, JsonSerializer.Serialize(persisted, MonitorJson.Options) + Environment.NewLine, ct);
     }
 
@@ -40,7 +41,9 @@ public sealed class HistoryStore
     public void Cleanup(int retentionDays)
     {
         var cutoff = DateTime.UtcNow.AddDays(-Math.Clamp(retentionDays, 1, 90));
-        foreach (var file in Directory.EnumerateFiles(_settings.DataDirectory, "metrics-*.jsonl"))
+        var logDirectory = _settings.Load().LogDirectory;
+        if (!Directory.Exists(logDirectory)) return;
+        foreach (var file in Directory.EnumerateFiles(logDirectory, "metrics-*.jsonl"))
             if (File.GetLastWriteTimeUtc(file) < cutoff) try { File.Delete(file); } catch { }
     }
 }

@@ -24,6 +24,7 @@ public sealed class SettingsStore
     public void Save(MonitorSettings settings)
     {
         Directory.CreateDirectory(DataDirectory);
+        Directory.CreateDirectory(settings.LogDirectory);
         var temp = SettingsPath + ".tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(settings, MonitorJson.Options));
         File.Move(temp, SettingsPath, true);

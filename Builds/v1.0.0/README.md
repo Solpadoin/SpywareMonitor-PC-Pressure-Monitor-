@@ -1,15 +1,15 @@
 # PC Pressure Monitor 1.0.0
 
-Первый публичный Windows-релиз.
+First public Windows release.
 
-Готовые файлы прикреплены к [GitHub Release v1.0.0](https://github.com/Solpadoin/SpywareMonitor-PC-Pressure-Monitor-/releases/tag/v1.0.0). Локальная команда `build.ps1` также складывает их непосредственно в эту папку; в историю Git тяжёлые бинарники не добавляются.
+Download the generated files from [GitHub Release v1.0.0](https://github.com/Solpadoin/SpywareMonitor-PC-Pressure-Monitor-/releases/tag/v1.0.0). Running `build.ps1` also places local copies directly in this directory; large binaries are not committed to Git history.
 
-## Установка
+## Installer
 
-Запустите `PC-Pressure-Monitor-Setup-1.0.0-win-x64.exe` и подтвердите запрос UAC. Установщик добавит интерфейс, системную службу с автоматическим запуском, ярлык на рабочий стол и запись для удаления в настройках Windows.
+Run `PC-Pressure-Monitor-Setup-1.0.0-win-x64.exe` and approve the UAC prompt. Setup installs the interface and automatic Windows service, creates a desktop shortcut, and registers the uninstaller with Windows.
 
-## Portable
+## Portable package
 
-Распакуйте ZIP, запустите `SpywareMonitor.App.exe`, затем используйте кнопку «Установить и запустить» в настройках для регистрации службы.
+Extract the ZIP and start `SpywareMonitor.App.exe`. Use **Install and start** in Settings to register the bundled service.
 
-Сборки автономны и не требуют предварительной установки .NET.
+Both packages are self-contained and do not require a preinstalled .NET runtime.

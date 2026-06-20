@@ -41,7 +41,7 @@ public partial class MainWindow : Window
         if (_activeNavigationButton is not null) _activeNavigationButton.Style = (Style)FindResource("NavButton");
         button.Style = (Style)FindResource("NavButtonActive");
         _activeNavigationButton = button;
-        PageTitle.Text = index switch { 0 => "Обзор системы", 1 => "Процессы", 2 => "Журнал событий", _ => "Настройки" };
+        PageTitle.Text = index switch { 0 => "System overview", 1 => "Processes", 2 => "Event log", _ => "Settings" };
     }
 
     private async Task RefreshAsync()
@@ -50,7 +50,7 @@ public partial class MainWindow : Window
         {
             _snapshot = await _client.SendAsync<SystemSnapshot>(new("latest"), 1500);
             if (_snapshot is null) return;
-            StatusDot.Fill = new SolidColorBrush(Color.FromRgb(63, 211, 154)); StatusText.Text = $"Служба активна · {_snapshot.Timestamp:HH:mm:ss}";
+            StatusDot.Fill = new SolidColorBrush(Color.FromRgb(63, 211, 154)); StatusText.Text = $"Service active · {_snapshot.Timestamp:HH:mm:ss}";
             CpuText.Text = $"{_snapshot.CpuPercent:F0}%"; CpuBar.Value = _snapshot.CpuPercent;
             MemoryText.Text = $"{_snapshot.MemoryPercent:F0}%"; MemoryBar.Value = _snapshot.MemoryPercent;
             IoText.Text = FormatRate(_snapshot.TotalReadBytesPerSecond + _snapshot.TotalWriteBytesPerSecond); IoSubText.Text = $"↓ {FormatRate(_snapshot.TotalReadBytesPerSecond)}  ↑ {FormatRate(_snapshot.TotalWriteBytesPerSecond)}";
@@ -62,7 +62,7 @@ public partial class MainWindow : Window
         catch
         {
             StatusDot.Fill = new SolidColorBrush(Color.FromRgb(240, 93, 108));
-            StatusText.Text = IsServiceInstalled() ? "Служба остановлена" : "Служба не установлена";
+            StatusText.Text = IsServiceInstalled() ? "Service stopped" : "Service not installed";
         }
     }
 
@@ -73,6 +73,7 @@ public partial class MainWindow : Window
             var status = await _client.SendAsync<ServiceStatus>(new("status")); if (status is null) return;
             IntervalBox.Text = status.Settings.SampleIntervalMs.ToString(); RetentionBox.Text = status.Settings.RetentionDays.ToString();
             CommandsCheck.IsChecked = status.Settings.CaptureCommandLines; NetworkCheck.IsChecked = status.Settings.CaptureNetworkEndpoints; HistoryCheck.IsChecked = status.Settings.PersistHistory; DataPathText.Text = status.DataDirectory;
+            LogPathBox.Text = status.Settings.LogDirectory;
         }
         catch { }
     }
@@ -85,22 +86,29 @@ public partial class MainWindow : Window
     private void ProcessSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if ((sender as DataGrid)?.SelectedItem is not ProcessRow row) return;
-        var p = row.Source; DetailName.Text = p.Name; DetailPid.Text = $"PID {p.ProcessId}"; DetailPath.Text = p.Path ?? "Недоступно"; DetailCommand.Text = p.CommandLine ?? "Недоступно";
+        var p = row.Source; DetailName.Text = p.Name; DetailPid.Text = $"PID {p.ProcessId}"; DetailPath.Text = p.Path ?? "Unavailable"; DetailCommand.Text = p.CommandLine ?? "Unavailable";
         EndpointsList.ItemsSource = p.NetworkEndpoints.Select(x => $"{x.Protocol}  {x.RemoteAddress}:{x.RemotePort}  {x.State}");
-        DetailStats.Text = $"CPU: {p.CpuPercent:F1}%\nWorking set: {FormatBytes(p.WorkingSetBytes)}\nPrivate memory: {FormatBytes(p.PrivateMemoryBytes)}\nЧтение: {FormatRate(p.ReadBytesPerSecond)}\nЗапись: {FormatRate(p.WriteBytesPerSecond)}\nПотоки: {p.ThreadCount} · Handles: {p.HandleCount}\nОтвечает: {(p.Responding is null ? "нет окна" : p.Responding.Value ? "да" : "НЕТ")}";
+        DetailStats.Text = $"CPU: {p.CpuPercent:F1}%\nWorking set: {FormatBytes(p.WorkingSetBytes)}\nPrivate memory: {FormatBytes(p.PrivateMemoryBytes)}\nRead: {FormatRate(p.ReadBytesPerSecond)}\nWrite: {FormatRate(p.WriteBytesPerSecond)}\nThreads: {p.ThreadCount} · Handles: {p.HandleCount}\nResponding: {(p.Responding is null ? "no window" : p.Responding.Value ? "yes" : "NO")}";
         SelectPage(1);
     }
 
     private async void SaveSettingsClick(object sender, RoutedEventArgs e)
     {
-        if (!int.TryParse(IntervalBox.Text, out var interval) || !int.TryParse(RetentionBox.Text, out var days)) { MessageBox.Show("Проверьте числовые значения."); return; }
+        if (!int.TryParse(IntervalBox.Text, out var interval) || !int.TryParse(RetentionBox.Text, out var days)) { MessageBox.Show("Check the numeric settings."); return; }
+        if (string.IsNullOrWhiteSpace(LogPathBox.Text) || !Path.IsPathRooted(LogPathBox.Text)) { MessageBox.Show("Select an absolute log directory."); return; }
         try
         {
             var current = (await _client.SendAsync<ServiceStatus>(new("status")))?.Settings ?? new();
-            var updated = current with { SampleIntervalMs = interval, RetentionDays = days, CaptureCommandLines = CommandsCheck.IsChecked == true, CaptureNetworkEndpoints = NetworkCheck.IsChecked == true, PersistHistory = HistoryCheck.IsChecked == true };
-            await _client.SendAsync<MonitorSettings>(new("settings", Settings: updated)); MessageBox.Show("Настройки сохранены.", "PC Pressure Monitor");
+            var updated = current with { SampleIntervalMs = interval, RetentionDays = days, LogDirectory = LogPathBox.Text.Trim(), CaptureCommandLines = CommandsCheck.IsChecked == true, CaptureNetworkEndpoints = NetworkCheck.IsChecked == true, PersistHistory = HistoryCheck.IsChecked == true };
+            var saved = await _client.SendAsync<MonitorSettings>(new("settings", Settings: updated)); DataPathText.Text = saved?.LogDirectory ?? updated.LogDirectory; MessageBox.Show("Settings saved.", "PC Pressure Monitor");
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Не удалось сохранить"); }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Unable to save settings"); }
+    }
+
+    private void BrowseLogsClick(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new System.Windows.Forms.FolderBrowserDialog { Description = "Select the snapshot log directory", UseDescriptionForTitle = true, SelectedPath = Directory.Exists(LogPathBox.Text) ? LogPathBox.Text : Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) };
+        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK) LogPathBox.Text = dialog.SelectedPath;
     }
 
     private void EnableServiceClick(object sender, RoutedEventArgs e)
@@ -108,7 +116,7 @@ public partial class MainWindow : Window
         var serviceExe = FindServiceExecutable();
         if (serviceExe is null)
         {
-            MessageBox.Show("Не найден SpywareMonitor.Service.exe. Запустите интерфейс из папки artifacts\\app или переустановите приложение через install.ps1.", "Не удаётся установить службу");
+            MessageBox.Show("SpywareMonitor.Service.exe was not found. Use the portable package or reinstall the application.", "Unable to install service");
             return;
         }
         var escaped = serviceExe.Replace("'", "''");
@@ -133,10 +141,10 @@ public partial class MainWindow : Window
             var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
             Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}") { Verb = "runas", UseShellExecute = true });
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Операция отменена"); }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Operation cancelled"); }
     }
-    private static string FormatBytes(long n) => n >= 1L << 30 ? $"{n / (double)(1L << 30):F2} ГБ" : n >= 1L << 20 ? $"{n / (double)(1L << 20):F1} МБ" : $"{n / 1024d:F0} КБ";
-    private static string FormatRate(long n) => FormatBytes(n) + "/с";
+    private static string FormatBytes(long n) => n >= 1L << 30 ? $"{n / (double)(1L << 30):F2} GB" : n >= 1L << 20 ? $"{n / (double)(1L << 20):F1} MB" : $"{n / 1024d:F0} KB";
+    private static string FormatRate(long n) => FormatBytes(n) + "/s";
 
     public sealed class ProcessRow
     {
@@ -147,6 +155,6 @@ public partial class MainWindow : Window
     public sealed class EventRow
     {
         public int ProcessId { get; } public int? ParentProcessId { get; } public string Name { get; } public string TimeDisplay { get; } public string KindDisplay { get; } public string Description { get; }
-        public EventRow(ProcessEvent e) { ProcessId = e.ProcessId; ParentProcessId = e.ParentProcessId; Name = e.Name; TimeDisplay = e.Timestamp.ToString("dd.MM HH:mm:ss"); KindDisplay = e.Kind == "started" ? "Запуск" : "Остановка"; Description = e.CommandLine ?? e.Path ?? ""; }
+        public EventRow(ProcessEvent e) { ProcessId = e.ProcessId; ParentProcessId = e.ParentProcessId; Name = e.Name; TimeDisplay = e.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"); KindDisplay = e.Kind == "started" ? "Started" : "Stopped"; Description = e.CommandLine ?? e.Path ?? ""; }
     }
 }

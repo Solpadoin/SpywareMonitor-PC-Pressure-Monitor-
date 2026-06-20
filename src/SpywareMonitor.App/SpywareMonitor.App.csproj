@@ -9,6 +9,13 @@
     <TargetFramework>net7.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\PressureMonitor.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\PressureMonitor.png" />
+    <Resource Include="Assets\PressureMonitor.ico" />
+  </ItemGroup>
 
 </Project>

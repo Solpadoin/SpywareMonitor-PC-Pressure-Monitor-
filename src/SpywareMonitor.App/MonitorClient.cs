@@ -20,7 +20,7 @@ public sealed class MonitorClient
         await writer.WriteLineAsync(JsonSerializer.Serialize(request, MonitorJson.Options));
         var line = await reader.ReadLineAsync();
         var response = line is null ? null : JsonSerializer.Deserialize<PipeResponse<T>>(line, MonitorJson.Options);
-        if (response?.Success != true) throw new InvalidOperationException(response?.Error ?? "Служба не ответила");
+        if (response?.Success != true) throw new InvalidOperationException(response?.Error ?? "The service did not respond.");
         return response.Data;
     }
 }

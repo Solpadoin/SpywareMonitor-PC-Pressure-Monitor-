@@ -46,7 +46,7 @@ public sealed class PipeServerWorker : BackgroundService
                     "latest" => new PipeResponse<SystemSnapshot>(true, _state.Latest),
                     "history" => new PipeResponse<IReadOnlyList<SystemSnapshot>>(true, _history.GetRecent(request.Limit)),
                     "events" => new PipeResponse<IReadOnlyList<ProcessEvent>>(true, _history.GetEvents(request.Limit)),
-                    "status" => new PipeResponse<ServiceStatus>(true, new(true, _state.StartedAt, typeof(PipeServerWorker).Assembly.GetName().Version?.ToString() ?? "1.0", _state.Settings, _settings.DataDirectory, _history.StoredCount)),
+                    "status" => new PipeResponse<ServiceStatus>(true, new(true, _state.StartedAt, typeof(PipeServerWorker).Assembly.GetName().Version?.ToString() ?? "1.0", _state.Settings, _state.Settings.LogDirectory, _history.StoredCount)),
                     "settings" when request.Settings is not null => SaveSettings(request.Settings),
                     _ => new PipeResponse<object>(false, null, "Unknown command")
                 };
@@ -58,7 +58,8 @@ public sealed class PipeServerWorker : BackgroundService
 
     private PipeResponse<MonitorSettings> SaveSettings(MonitorSettings settings)
     {
-        var sanitized = settings with { SampleIntervalMs = Math.Clamp(settings.SampleIntervalMs, 500, 10000), RetentionDays = Math.Clamp(settings.RetentionDays, 1, 90), MaxProcesses = Math.Clamp(settings.MaxProcesses, 25, 1000) };
+        if (string.IsNullOrWhiteSpace(settings.LogDirectory) || !Path.IsPathRooted(settings.LogDirectory)) return new(false, null, "The log directory must be an absolute path.");
+        var sanitized = settings with { SampleIntervalMs = Math.Clamp(settings.SampleIntervalMs, 500, 10000), RetentionDays = Math.Clamp(settings.RetentionDays, 1, 90), MaxProcesses = Math.Clamp(settings.MaxProcesses, 25, 1000), LogDirectory = Path.GetFullPath(settings.LogDirectory.Trim()) };
         _settings.Save(sanitized); _state.SetSettings(sanitized);
         return new(true, sanitized);
     }

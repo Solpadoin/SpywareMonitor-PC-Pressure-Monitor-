@@ -1,10 +1,5 @@
-# Готовые сборки
+# Release builds
 
-Каждая версия находится в собственной папке и содержит:
+Each version directory contains release documentation and SHA-256 checksums. Large installer and portable binaries are published as GitHub Release assets instead of repository blobs.
 
-- автономный EXE-установщик;
-- portable ZIP без установки;
-- SHA-256 checksums;
-- краткую информацию о версии.
-
-Для большинства пользователей предназначен `PC-Pressure-Monitor-Setup-*.exe`.
+For most users, the recommended download is `PC-Pressure-Monitor-Setup-*.exe`.
