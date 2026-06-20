@@ -96,6 +96,7 @@ public partial class MainWindow : Window
     {
         if (!int.TryParse(IntervalBox.Text, out var interval) || !int.TryParse(RetentionBox.Text, out var days)) { MessageBox.Show("Check the numeric settings."); return; }
         if (string.IsNullOrWhiteSpace(LogPathBox.Text) || !Path.IsPathRooted(LogPathBox.Text)) { MessageBox.Show("Select an absolute log directory."); return; }
+        if (!await EnsureServiceAvailableAsync()) return;
         try
         {
             var current = (await _client.SendAsync<ServiceStatus>(new("status")))?.Settings ?? new();
@@ -103,6 +104,27 @@ public partial class MainWindow : Window
             var saved = await _client.SendAsync<MonitorSettings>(new("settings", Settings: updated)); DataPathText.Text = saved?.LogDirectory ?? updated.LogDirectory; MessageBox.Show("Settings saved.", "PC Pressure Monitor");
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Unable to save settings"); }
+    }
+
+    private async Task<bool> EnsureServiceAvailableAsync()
+    {
+        try { return await _client.SendAsync<ServiceStatus>(new("status"), 700) is not null; }
+        catch { }
+        if (!IsServiceInstalled())
+        {
+            MessageBox.Show("The monitoring service is not installed. Use 'Install and start' first.", "Service required", MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
+        }
+        if (MessageBox.Show("The monitoring service is stopped. Start it now and apply these settings?", "Start monitoring service", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+        var started = await RunElevatedAsync($"$s=Get-CimInstance Win32_Service -Filter \"Name='{MonitorConstants.ServiceName}'\"; if($s.StartMode -eq 'Disabled'){{ sc.exe config {MonitorConstants.ServiceName} start= demand | Out-Null }}; Start-Service {MonitorConstants.ServiceName}");
+        if (!started) { MessageBox.Show("Windows did not start the monitoring service.", "Service unavailable", MessageBoxButton.OK, MessageBoxImage.Warning); return false; }
+        for (var i = 0; i < 12; i++)
+        {
+            await Task.Delay(500);
+            try { if (await _client.SendAsync<ServiceStatus>(new("status"), 700) is not null) return true; } catch { }
+        }
+        MessageBox.Show("The service started, but the application could not connect to it.", "Service unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+        return false;
     }
 
     private void BrowseLogsClick(object sender, RoutedEventArgs e)
@@ -122,8 +144,8 @@ public partial class MainWindow : Window
         var escaped = serviceExe.Replace("'", "''");
         RunElevated($"$s=Get-Service -Name '{MonitorConstants.ServiceName}' -ErrorAction SilentlyContinue; if(-not $s){{ sc.exe create {MonitorConstants.ServiceName} binPath= '\"{escaped}\"' start= auto DisplayName= 'PC Pressure Monitor' | Out-Null; sc.exe description {MonitorConstants.ServiceName} 'Local system performance diagnostics' | Out-Null; sc.exe failure {MonitorConstants.ServiceName} reset= 86400 actions= restart/5000/restart/15000/restart/60000 | Out-Null }} else {{ sc.exe config {MonitorConstants.ServiceName} start= auto | Out-Null }}; Start-Service {MonitorConstants.ServiceName}; Start-Sleep -Seconds 1");
     }
-    private void DisableServiceClick(object sender, RoutedEventArgs e) => RunElevated($"Stop-Service {MonitorConstants.ServiceName} -Force -ErrorAction SilentlyContinue; sc.exe config {MonitorConstants.ServiceName} start= disabled | Out-Null");
-    private void RestartServiceClick(object sender, RoutedEventArgs e) => RunElevated($"Restart-Service {MonitorConstants.ServiceName} -Force");
+    private void DisableServiceClick(object sender, RoutedEventArgs e) => RunElevated($"sc.exe config {MonitorConstants.ServiceName} start= demand | Out-Null");
+    private void RestartServiceClick(object sender, RoutedEventArgs e) => RunElevated($"$s=Get-CimInstance Win32_Service -Filter \"Name='{MonitorConstants.ServiceName}'\"; if($s.StartMode -eq 'Disabled'){{ sc.exe config {MonitorConstants.ServiceName} start= demand | Out-Null }}; $service=Get-Service {MonitorConstants.ServiceName}; if($service.Status -eq 'Running'){{ Restart-Service {MonitorConstants.ServiceName} -Force }}else{{ Start-Service {MonitorConstants.ServiceName} }}");
     private static string? FindServiceExecutable()
     {
         var baseDir = AppContext.BaseDirectory;
@@ -136,12 +158,20 @@ public partial class MainWindow : Window
     }
     private static void RunElevated(string command)
     {
+        _ = RunElevatedAsync(command);
+    }
+    private static async Task<bool> RunElevatedAsync(string command)
+    {
         try
         {
-            var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
-            Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}") { Verb = "runas", UseShellExecute = true });
+            var guarded = "$ErrorActionPreference='Stop'; try { " + command + " } catch { exit 1 }";
+            var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(guarded));
+            using var process = Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}") { Verb = "runas", UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
+            if (process is null) return false;
+            await Task.Run(process.WaitForExit);
+            return process.ExitCode == 0;
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Operation cancelled"); }
+        catch { return false; }
     }
     private static string FormatBytes(long n) => n >= 1L << 30 ? $"{n / (double)(1L << 30):F2} GB" : n >= 1L << 20 ? $"{n / (double)(1L << 20):F1} MB" : $"{n / 1024d:F0} KB";
     private static string FormatRate(long n) => FormatBytes(n) + "/s";
