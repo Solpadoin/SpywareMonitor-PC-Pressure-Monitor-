@@ -1,0 +1,2 @@
+dda6d0408bb16d1e7cee0382be79158f879b5f2a077030147fea74ef54486023  PC-Pressure-Monitor-Setup-1.0.1-win-x64.exe
+eefd876e13ecf39c5f98953d0eeab9e424839135c12ab9ee89c0e784adbe612e  PC-Pressure-Monitor-Portable-1.0.1-win-x64.zip

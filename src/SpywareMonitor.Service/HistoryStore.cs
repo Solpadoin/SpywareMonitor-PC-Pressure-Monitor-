@@ -6,7 +6,7 @@ namespace SpywareMonitor.Service;
 
 public sealed class HistoryStore
 {
-    private const int MemoryCapacity = 3600;
+    private const int MemoryCapacity = 300;
     private readonly ConcurrentQueue<SystemSnapshot> _snapshots = new();
     private readonly ConcurrentQueue<ProcessEvent> _events = new();
     private readonly SettingsStore _settings;
@@ -18,14 +18,50 @@ public sealed class HistoryStore
 
     public async Task AddAsync(SystemSnapshot snapshot, MonitorSettings settings, CancellationToken ct)
     {
-        _snapshots.Enqueue(snapshot);
+        var memorySnapshot = snapshot with
+        {
+            Processes = snapshot.Processes.Take(25).Select(p => p with
+            {
+                CommandLine = null,
+                NetworkEndpoints = Array.Empty<NetworkEndpoint>()
+            }).ToArray(),
+            Alerts = snapshot.Alerts.Take(20).ToArray()
+        };
+        _snapshots.Enqueue(memorySnapshot);
         while (_snapshots.Count > MemoryCapacity) _snapshots.TryDequeue(out _);
         Interlocked.Increment(ref _stored);
-        if (!settings.PersistHistory || snapshot.Timestamp - _lastPersisted < TimeSpan.FromSeconds(10)) return;
+        if (!settings.PersistHistory || snapshot.Timestamp - _lastPersisted < TimeSpan.FromSeconds(30)) return;
         _lastPersisted = snapshot.Timestamp;
-        var persisted = snapshot with { Processes = snapshot.Processes.Take(100).ToArray() };
+        var persisted = new
+        {
+            snapshot.Timestamp,
+            snapshot.SnapshotTime,
+            snapshot.CpuPercent,
+            snapshot.MemoryPercent,
+            snapshot.UsedMemoryBytes,
+            snapshot.TotalMemoryBytes,
+            snapshot.TotalReadBytesPerSecond,
+            snapshot.TotalWriteBytesPerSecond,
+            snapshot.ProcessCount,
+            snapshot.ThreadCount,
+            TopProcesses = snapshot.Processes.Take(15).Select(p => new
+            {
+                p.ProcessId,
+                p.Name,
+                p.CpuPercent,
+                p.WorkingSetBytes,
+                p.PrivateMemoryBytes,
+                p.ReadBytesPerSecond,
+                p.WriteBytesPerSecond,
+                p.ThreadCount,
+                p.HandleCount,
+                p.Responding,
+                p.PressureScore
+            }),
+            Alerts = snapshot.Alerts.Take(10)
+        };
         Directory.CreateDirectory(settings.LogDirectory);
-        var path = Path.Combine(settings.LogDirectory, $"metrics-{snapshot.Timestamp:yyyy-MM-dd}.jsonl");
+        var path = Path.Combine(settings.LogDirectory, $"snapshots-{snapshot.Timestamp:yyyy-MM-dd}.jsonl");
         await File.AppendAllTextAsync(path, JsonSerializer.Serialize(persisted, MonitorJson.Options) + Environment.NewLine, ct);
     }
 
@@ -43,7 +79,8 @@ public sealed class HistoryStore
         var cutoff = DateTime.UtcNow.AddDays(-Math.Clamp(retentionDays, 1, 90));
         var logDirectory = _settings.Load().LogDirectory;
         if (!Directory.Exists(logDirectory)) return;
-        foreach (var file in Directory.EnumerateFiles(logDirectory, "metrics-*.jsonl"))
+        var files = Directory.EnumerateFiles(logDirectory, "metrics-*.jsonl").Concat(Directory.EnumerateFiles(logDirectory, "snapshots-*.jsonl"));
+        foreach (var file in files)
             if (File.GetLastWriteTimeUtc(file) < cutoff) try { File.Delete(file); } catch { }
     }
 }

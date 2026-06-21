@@ -14,9 +14,11 @@ public sealed class SettingsStore
     {
         try
         {
-            return File.Exists(SettingsPath)
+            var settings = File.Exists(SettingsPath)
                 ? JsonSerializer.Deserialize<MonitorSettings>(File.ReadAllText(SettingsPath), MonitorJson.Options) ?? new()
                 : new();
+            var logOverride = Environment.GetEnvironmentVariable("SPYWARE_MONITOR_LOG_DIRECTORY");
+            return string.IsNullOrWhiteSpace(logOverride) ? settings : settings with { LogDirectory = Path.GetFullPath(logOverride) };
         }
         catch { return new(); }
     }
